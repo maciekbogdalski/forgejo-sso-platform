@@ -1,0 +1,120 @@
+---
+version: '3.8'
+services:
+  #
+  # Traefik cert init
+  #
+  traefik_cert_init:
+    image: registry.vcc.local:5000/vcc-traefik_cert_init
+    environment: 
+      SSL_CN: "*.vcc.local"
+      SSL_O: "VCC"
+      SSL_C: "IT"
+      SSL_DAYS: 3650
+    volumes:
+      - /data/services/traefik-certs:/etc/ssl/traefik
+      - /data/services/traefik:/etc/traefik/dynamic
+    deploy:
+      restart_policy:
+        condition: none
+      mode: replicated
+      replicas: 1
+
+  #
+  # Traefik
+  #
+  traefik:
+    # TODO
+    command:
+      - --log.level=DEBUG # DEBUG, PANIC, FATAL, ERROR, WARN, INFO
+
+  #
+  # Monitoring stack
+  #
+  # prom.vcc.local
+  prometheus:
+    # TODO
+    user: root # lol
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - /data/configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  fluent-bit:
+    image: cr.fluentbit.io/fluent/fluent-bit:2.2.0
+    user: root # needs to read /proc and /sys of the host
+    command:
+      - --config=/etc/fluent-bit/fluent-bit.yml
+    privileged: true
+    volumes:
+      - /data/configs/fluent-bit.conf:/etc/fluent-bit/fluent-bit.conf:ro
+      - /data/configs/fluent-bit.yml:/etc/fluent-bit/fluent-bit.yml:ro
+      - /proc:/host/proc
+      - /sys:/host/sys
+    deploy:
+      # TODO which mode?
+      mode: '???'
+
+  #
+  # Logging
+  #
+  loki:
+    # TODO
+    volumes:
+      - /data/configs/loki.yml:/etc/loki/loki.yml
+
+  promtail:
+    # TODO
+    command:
+      - -config.file=/etc/promtail/promtail.yml
+    user: root # needs to access docker socket
+    volumes:
+      - /data/configs/promtail.yml:/etc/promtail/promtail.yml
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker:/var/lib/docker
+      - /var/log:/var/log
+    deploy:
+      # TODO which mode?
+      mode: '???'
+
+  #
+  # Dashboarding
+  #
+  # mon.vcc.local
+  grafana:
+    # TODO
+    user: root # lol
+
+  #
+  # Database
+  #
+  database:
+    # TODO
+  
+  #
+  # Application
+  #
+  forgejo:
+    # TODO
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+    volumes:
+      - /data/configs/forgejo.ini:/data/gitea/conf/app.ini
+
+  #
+  # Authentication server
+  #
+  auth:
+    # TODO
+    command:
+      - start-dev
+      - --import-realm
+      # TODO specify the correct URL for authentication
+      - --transaction-xa-enabled=false
+      - --proxy=edge
+    volumes:
+      - /data/configs/keycloak:/opt/keycloak/data/import:ro
+
+  auth_setup:
+    image: registry.vcc.local:5000/vcc-keycloak-users

@@ -1,0 +1,8 @@
+---
+# tasks file for roles/swarm
+
+- name: check/init swarm
+  # TODO
+
+- name: join worker
+  # TODO

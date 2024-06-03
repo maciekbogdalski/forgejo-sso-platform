@@ -1,0 +1,127 @@
+---
+# tasks file for roles/registry
+- name: Install apache2-utils for htpasswd
+  # TODO
+
+- name: create entry in '/etc/hosts' for registry 
+  lineinfile:
+    path: /etc/hosts
+    state: present
+    line: "127.0.0.1 {{ registry_name }}"
+  become: yes
+
+- name: Create the shared /data/registry directory
+  # TODO
+
+- name: Create the shared /data/registry/cert directory
+  # TODO
+
+- name: Create private key (RSA, 4096 bits)
+  # TODO
+
+- name: Create self-signed certificate
+  # TODO
+
+- name: Create registry htpasswd
+  # TODO
+ 
+- name: Config for registry proxy cache
+  set_fact:
+    proxy_config: "{{ config | to_nice_yaml }}"
+  vars:
+    config:
+      version: 0.1
+      log:
+        fields:
+          service: registry
+      storage:
+        cache:
+          blobdescriptor: inmemory
+        filesystem:
+          rootdirectory: /var/lib/registry
+      http:
+        addr: 127.0.0.1:5001
+        headers:
+          X-Content-Type-Options: [nosniff]
+      health:
+        storagedriver:
+          enabled: true
+          interval: 10s
+          threshold: 3
+      delete:
+        enabled: true
+      proxy:
+        remoteurl: https://registry-1.docker.io
+
+- name: Copy using inline content
+  ansible.builtin.copy:
+    content: "{{ proxy_config }}"
+    dest: /data/registry/config.yml
+  become: yes     
+  when: inventory_hostname in groups['nfs_server']
+
+- name: Config for registry proxy in docker daemon 
+  set_fact:
+    docker_daemon: "{{ config | to_nice_json }}"
+  vars:
+    config:
+      registry-mirrors:
+       - http://127.0.0.1:5001
+      insecure-registries:
+       - 127.0.0.1:5001
+
+- name: Copy using inline content
+  ansible.builtin.copy:
+    content: "{{ docker_daemon }}"
+    dest: /etc/docker/daemon.json
+  become: yes     
+
+- name: Restart dockerd
+  ansible.builtin.service:
+    name: docker
+    state: restarted
+  become: yes
+
+- name: Run registry for cache
+  docker_swarm_service:
+    name: registry-cache
+    image: registry:2.8.3
+    mode: global
+    mounts:
+      - source: /data/registry
+        target: /var/lib/registry
+        type: bind
+      - source: /data/registry/config.yml
+        target: /etc/docker/registry/config.yml
+        type: bind
+    networks: 
+      - host
+  when: inventory_hostname in groups['swarm_manager']
+
+- name: Run registry
+  docker_swarm_service:
+    # TODO something for auth and TLS
+    name: registry
+    image: registry:2.8.3
+    mode: global
+    mounts:
+      - source: /data/registry
+        target: /var/lib/registry
+        type: bind
+      - source: /data/registry/cert
+        target: /cert
+        type: bind
+      - source: /data/registry/htpasswd
+        target: /htpasswd
+        type: bind
+    networks: 
+      - host
+  when: inventory_hostname in groups['swarm_manager']
+
+- name: Wait for port 5000
+  ansible.builtin.wait_for:
+    port: 5000
+    delay: 5
+
+- name: Log into private registry
+  # TODO

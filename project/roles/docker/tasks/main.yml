@@ -1,0 +1,21 @@
+---
+# tasks file for roles/docker
+
+- name: add Docker apt repository key.
+  # TODO
+
+- name: add Docker source
+  # TODO
+
+- name: Install Docker and docker compose plugin
+  # TODO
+
+- name: add vagrant user to group docker
+  ansible.builtin.user:
+    name: vagrant
+    groups: docker
+    append: yes
+  become: true
+
+- name: Reset ssh connection
+  ansible.builtin.meta: reset_connection

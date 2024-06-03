@@ -1,0 +1,23 @@
+---
+# tasks file for roles/nfs
+
+- name: Install server package
+  # TODO
+
+- name: Install client package
+  # TODO
+
+- name: enable nfs server
+  # TODO
+
+- name: Create the shared /data directory
+  # TODO
+
+- name: Configure /etc/exports
+  # TODO
+
+- name: Export /data directory in nfs server
+  # TODO
+
+- name: mount /data on nfs client
+  # TODO
