@@ -1,1 +1,7 @@
 **/.vagrant
+
+# Ignore Ansible vault files
+*.vault
+
+# Ignore other sensitive files
+secrets.yml
