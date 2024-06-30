@@ -1,7 +1,10 @@
 ---
 # tasks file for roles/registry
 - name: Install apache2-utils for htpasswd
-  # TODO
+  apt:
+    name: apache2-utils
+    state: present
+  become: yes
 
 - name: create entry in '/etc/hosts' for registry 
   lineinfile:
@@ -11,20 +14,38 @@
   become: yes
 
 - name: Create the shared /data/registry directory
-  # TODO
+  file:
+    path: /data/registry
+    state: directory
+    mode: '0755'
+  become: yes
 
 - name: Create the shared /data/registry/cert directory
-  # TODO
+  file:
+    path: /data/registry/cert
+    state: directory
+    mode: '0755'
+  become: yes
 
 - name: Create private key (RSA, 4096 bits)
-  # TODO
+  community.crypto.openssl_privatekey:
+    path: /data/registry/cert/registry.key
+    size: 4096
+  become: yes
 
 - name: Create self-signed certificate
-  # TODO
+  community.crypto.openssl_certificate:
+    path: /data/registry/cert/registry.pem
+    privatekey_path: /data/registry/cert/registry.key
+    common_name: "{{ inventory_hostname }}"
+  become: yes
 
 - name: Create registry htpasswd
-  # TODO
- 
+  command: htpasswd -bc /data/registry/htpasswd {{ registry_user }} {{ registry_password }}
+  become: yes
+  args:
+    creates: /data/registry/htpasswd
+
 - name: Config for registry proxy cache
   set_fact:
     proxy_config: "{{ config | to_nice_yaml }}"
