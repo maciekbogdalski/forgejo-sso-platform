@@ -145,4 +145,8 @@
     delay: 5
 
 - name: Log into private registry
-  # TODO
+  docker_login:
+    registry: 127.0.0.1:5000
+    username: "{{ registry_user }}"
+    password: "{{ registry_password }}"
+  become: yes

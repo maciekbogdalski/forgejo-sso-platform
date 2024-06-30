@@ -6,7 +6,16 @@
     - swarm
     - nfs
     - registry
+  vars:
+    registry_name: "myregistry"
+    registry_user: "myuser"
+    registry_password: "mypassword"
+
 - name: Docker Swarm services
   hosts: targets[0]
   roles:
     - swarm-services
+  vars:
+    registry_name: "myregistry"
+    registry_user: "myuser"
+    registry_password: "mypassword"
