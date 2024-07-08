@@ -1,8 +1,30 @@
 ---
-# tasks file for roles/swarm
+- name: Leave existing swarm if any (manager)
+  command: docker swarm leave --force
+  ignore_errors: yes
+  when: inventory_hostname == 'control'
 
-- name: check/init swarm
-  # TODO
+- name: Initialize Docker Swarm on manager
+  command: docker swarm init --advertise-addr 192.168.73.10
+  register: swarm_init
+  when: inventory_hostname == 'control'
 
-- name: join worker
-  # TODO
+- name: Get worker join token
+  command: docker swarm join-token -q worker
+  register: swarm_worker_join_token
+  when: inventory_hostname == 'control'
+
+- name: Set fact for worker join token
+  set_fact:
+    swarm_worker_join_token: "{{ swarm_worker_join_token.stdout }}"
+  when: inventory_hostname == 'control'
+
+- name: Leave existing swarm if any (worker)
+  command: docker swarm leave --force
+  ignore_errors: yes
+  when: inventory_hostname != 'control'
+
+- name: Join Docker Swarm as worker
+  command: docker swarm join --token {{ hostvars['control'].swarm_worker_join_token }} 192.168.73.10:2377
+  when: inventory_hostname != 'control'
+

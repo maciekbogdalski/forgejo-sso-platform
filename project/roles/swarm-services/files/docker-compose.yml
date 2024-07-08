@@ -1,0 +1,28 @@
+version: '3.8'
+services:
+  forgejo:
+    image: forgejo/forgejo:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - FORGEJO__SECURITY__SECRET_KEY=super-secret-key  # Ensure this key is set
+      - FORGEJO__DATABASE__DB_TYPE=sqlite3
+      - FORGEJO__DATABASE__PATH=/data/gitea.db
+    volumes:
+      - /data/forgejo:/data
+    networks:
+      - forgejo-net
+  sso:
+    image: bitnami/keycloak:latest
+    environment:
+      - KEYCLOAK_USER=admin
+      - KEYCLOAK_PASSWORD=admin
+      - DB_VENDOR=h2
+    ports:
+      - "8080:8080"
+    networks:
+      - forgejo-net
+
+networks:
+  forgejo-net:
+

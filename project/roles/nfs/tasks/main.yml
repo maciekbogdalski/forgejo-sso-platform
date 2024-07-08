@@ -1,23 +1,49 @@
 ---
-# tasks file for roles/nfs
+- name: Create NFS share directory on control node
+  file:
+    path: /srv/nfs/share
+    state: directory
+    mode: '0755'
 
-- name: Install server package
-  # TODO
+- name: Remove duplicate NFS export entries
+  lineinfile:
+    path: /etc/exports
+    state: absent
+    regexp: '^/srv/nfs/share 192.168.73.0/24'
 
-- name: Install client package
-  # TODO
+- name: Ensure NFS export entry is present
+  lineinfile:
+    path: /etc/exports
+    line: "/srv/nfs/share 192.168.73.0/24(rw,sync,no_subtree_check,no_root_squash)"
+    state: present
+    create: yes
 
-- name: enable nfs server
-  # TODO
+- name: Re-export NFS shares
+  command: exportfs -ra
 
-- name: Create the shared /data directory
-  # TODO
+- name: Restart NFS server
+  service:
+    name: nfs-kernel-server
+    state: restarted
 
-- name: Configure /etc/exports
-  # TODO
+- name: Create mount point directory
+  file:
+    path: /mnt/nfs
+    state: directory
+    mode: '0755'
 
-- name: Export /data directory in nfs server
-  # TODO
+- name: Mount NFS share
+  mount:
+    src: "{{ hostvars['control'].ansible_host }}:/srv/nfs/share"
+    path: /mnt/nfs
+    fstype: nfs
+    state: mounted
 
-- name: mount /data on nfs client
-  # TODO
+- name: Ensure NFS share is mounted at boot
+  mount:
+    src: "{{ hostvars['control'].ansible_host }}:/srv/nfs/share"
+    path: /mnt/nfs
+    fstype: nfs
+    opts: defaults
+    state: present
+

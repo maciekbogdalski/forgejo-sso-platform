@@ -1,0 +1,14 @@
+---
+- hosts: localhost
+  tasks:
+    - name: Generate private key
+      community.crypto.openssl_privatekey:
+        path: /tmp/test_key.pem
+        size: 2048
+
+    - name: Test community.crypto.x509_certificate module
+      community.crypto.x509_certificate:
+        path: /tmp/test_cert.pem
+        privatekey_path: /tmp/test_key.pem
+        provider: selfsigned
+

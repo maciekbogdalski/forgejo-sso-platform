@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  forgejo:
+    image: forgejo/forgejo:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - forgejo-data:/var/lib/forgejo
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - USER_UID=1000
+      - USER_GID=1000
+    networks:
+      - forgejo-network
+
+volumes:
+  forgejo-data:
+
+networks:
+  forgejo-network:
+    driver: overlay
+

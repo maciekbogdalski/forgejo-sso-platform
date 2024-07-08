@@ -1,18 +1,145 @@
 ---
+- name: Ensure vagrant user is in the docker group
+  hosts: all
+  become: true
+  tasks:
+    - name: Add vagrant user to docker group
+      user:
+        name: vagrant
+        groups: docker
+        append: yes
+
+    - name: Refresh group membership
+      command: newgrp docker
+
 - name: Docker and init swarm
-  hosts: targets
+  hosts: all
+  become: true
   roles:
     - docker
-    - swarm
     - nfs
-    - registry
-  vars_files:
-    - secrets.vault
+
+- name: Initialize Docker Swarm on manager
+  hosts: control
+  become: true
+  tasks:
+    - name: Leave existing swarm if any (manager)
+      command: docker swarm leave --force
+      ignore_errors: true
+
+    - name: Initialize Docker Swarm on manager
+      command: docker swarm init --advertise-addr {{ ansible_host }}
+      register: swarm_init
+      ignore_errors: true
+
+    - name: Get worker join token
+      command: docker swarm join-token worker -q
+      register: worker_join_token
+      when: swarm_init.rc == 0
+
+    - name: Set worker join token as fact
+      set_fact:
+        swarm_worker_join_token: "{{ worker_join_token.stdout }}"
+
+- name: Join Docker Swarm as worker
+  hosts: targets
+  become: true
+  tasks:
+    - name: Leave existing swarm if any (worker)
+      command: docker swarm leave --force
+      ignore_errors: true
+
+    - name: Join Docker Swarm as worker
+      command: docker swarm join --token {{ hostvars['control'].swarm_worker_join_token }} {{ hostvars['control'].ansible_host }}:2377
+      when: hostvars['control'].swarm_worker_join_token is defined
 
 - name: Docker Swarm services
-  hosts: targets[0]
-  roles:
-    - swarm-services
-  vars_files:
-    - secrets.vault
+  hosts: control
+  become: true
+  tasks:
+    - name: Copy docker-compose.yml to manager
+      copy:
+        src: files/docker-compose.yml
+        dest: /srv/docker-compose.yml
+
+    - name: Set SECRET_KEY environment variable
+      shell: echo "SECRET_KEY=$(openssl rand -base64 32)" > /srv/.env
+
+    - name: Deploy Forgejo service
+      command: docker stack deploy -c /srv/docker-compose.yml forgejo
+
+- name: Ensure NFS export configuration
+  hosts: control
+  become: true
+  tasks:
+    - name: Ensure /srv/nfs/share directory exists
+      file:
+        path: /srv/nfs/share
+        state: directory
+
+    - name: Remove duplicate NFS export entries
+      lineinfile:
+        path: /etc/exports
+        state: absent
+        regexp: '^/srv/nfs/share'
+
+    - name: Ensure NFS export entry is present
+      lineinfile:
+        path: /etc/exports
+        line: '/srv/nfs/share 192.168.73.0/24(rw,sync,no_subtree_check,no_root_squash)'
+
+    - name: Re-export NFS shares
+      command: exportfs -ra
+
+    - name: Restart NFS server
+      service:
+        name: nfs-kernel-server
+        state: restarted
+
+- name: Mount NFS shares
+  hosts: targets
+  become: true
+  tasks:
+    - name: Create mount point directory
+      file:
+        path: /mnt/nfs
+        state: directory
+
+    - name: Mount NFS share
+      mount:
+        src: "{{ hostvars['control'].ansible_host }}:/srv/nfs/share"
+        path: /mnt/nfs
+        fstype: nfs
+        opts: rw
+        state: mounted
+
+    - name: Ensure NFS share is mounted at boot
+      mount:
+        src: "{{ hostvars['control'].ansible_host }}:/srv/nfs/share"
+        path: /mnt/nfs
+        fstype: nfs
+        opts: rw
+        state: present
+
+- name: Generate registry certificates
+  hosts: control
+  become: yes
+  tasks:
+    - name: Create registry cert directory
+      file:
+        path: /data/registry/cert
+        state: directory
+        mode: '0755'
+
+    - name: Generate RSA private key
+      community.crypto.openssl_privatekey:
+        path: /data/registry/cert/registry.key
+        size: 2048
+        type: RSA
+
+    - name: Generate self-signed certificate
+      community.crypto.x509_certificate:
+        path: /data/registry/cert/registry.pem
+        privatekey_path: /data/registry/cert/registry.key
+        provider: selfsigned
 

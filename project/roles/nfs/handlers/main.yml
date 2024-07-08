@@ -1,3 +1,6 @@
 ---
-# handlers file for roles/nfs
+- name: restart nfs
+  systemd:
+    name: nfs-kernel-server
+    state: restarted
 
