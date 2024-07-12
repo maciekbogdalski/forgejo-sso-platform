@@ -271,3 +271,58 @@
     - name: Debug PostgreSQL service result
       debug:
         var: postgres_service_result
+
+
+
+- name: Create OpenSSL configuration file for Traefik certificate
+  hosts: control
+  tasks:
+    - name: Create directory for OpenSSL config
+      file:
+        path: /etc/traefik_cert
+        state: directory
+
+    - name: Create OpenSSL configuration file
+      copy:
+        dest: /etc/traefik_cert/openssl.cnf
+        content: |
+          [ req ]
+          default_bits       = 2048
+          default_md         = sha256
+          default_keyfile    = privkey.pem
+          distinguished_name = req_distinguished_name
+          req_extensions     = req_ext
+          x509_extensions    = v3_ca
+
+          [ req_distinguished_name ]
+          countryName                 = Country Name (2 letter code)
+          stateOrProvinceName         = State or Province Name (full name)
+          localityName                = Locality Name (eg, city)
+          organizationName            = Organization Name (eg, company)
+          organizationalUnitName      = Organizational Unit Name (eg, section)
+          commonName                  = Common Name (eg, fully qualified host name)
+          emailAddress                = Email Address
+
+          [ req_ext ]
+          subjectAltName = @alt_names
+
+          [ v3_ca ]
+          subjectAltName = @alt_names
+
+          [ alt_names ]
+          DNS.1 = *.vcc.local
+
+    - name: Run traefik_cert_init container with custom OpenSSL configuration
+      shell: |
+        docker run --rm -v /etc/traefik_cert:/etc/traefik_cert -v /certs:/certs debian sh -c "
+        apt-get update && apt-get install -y openssl &&
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /certs/traefik.key -out /certs/traefik.crt -config /etc/traefik_cert/openssl.cnf -subj '/C=US/ST=Denial/L=Springfield/O=Dis/CN=traefik.vcc.local'"
+
+
+    - name: Verify the Traefik certificate
+      shell: openssl x509 -text -noout -in /certs/traefik.crt
+      register: cert_output
+
+    - name: Display certificate details
+      debug:
+        var: cert_output.stdout
