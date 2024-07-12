@@ -1,12 +1,12 @@
 [control]
-control ansible_host=192.168.73.10
+control ansible_host=192.168.177.10
 
 [targets]
-target1 ansible_host=192.168.73.11
-target2 ansible_host=192.168.73.12
+target1 ansible_host=192.168.177.11
+target2 ansible_host=192.168.177.12
 
 [nfs_server]
-control ansible_host=192.168.73.10
+control ansible_host=192.168.177.10
 
 [swarm_manager]
-control ansible_host=192.168.73.10
+control ansible_host=192.168.177.10

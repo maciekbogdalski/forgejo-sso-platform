@@ -30,7 +30,7 @@ generate-ssh-key:
 	fi
 
 distribute-ssh-key:
-	@for host in 192.168.73.10 192.168.73.11 192.168.73.12; do \
+	@for host in 192.168.177.10 192.168.177.11 192.168.177.12; do \
 		sshpass -p "vagrant" ssh-copy-id -i $(SSH_KEY_PATH).pub vagrant@$$host; \
 	done
 

@@ -1,23 +1,23 @@
 version: '3.8'
 
 services:
-  forgejo:
-    image: forgejo/forgejo:latest
+  registry:
+    image: registry:2
     ports:
-      - "3000:3000"
-    volumes:
-      - forgejo-data:/var/lib/forgejo
+      - "5000:5000"
     environment:
-      - SECRET_KEY=${SECRET_KEY}
-      - USER_UID=1000
-      - USER_GID=1000
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: Registry Realm
+      REGISTRY_HTTP_TLS_CERTIFICATE: /cert/registry.pem
+      REGISTRY_HTTP_TLS_KEY: /cert/registry.key
+    volumes:
+      - /data/registry:/var/lib/registry
+      - /data/registry/auth:/auth
+      - /data/registry/cert:/cert
     networks:
-      - forgejo-network
-
-volumes:
-  forgejo-data:
+      - registry_network
 
 networks:
-  forgejo-network:
+  registry_network:
     driver: overlay
-

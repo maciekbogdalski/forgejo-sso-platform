@@ -1,0 +1,15 @@
+---
+- name: Unmount stale NFS shares
+  hosts: all
+  become: yes
+  tasks:
+    - name: Unmount NFS share
+      command: umount /mnt/nfs
+      ignore_errors: yes
+
+    - name: Remove stale NFS mount entry from fstab
+      lineinfile:
+        path: /etc/fstab
+        regexp: ".*:/srv/nfs"
+        state: absent
+      ignore_errors: yes

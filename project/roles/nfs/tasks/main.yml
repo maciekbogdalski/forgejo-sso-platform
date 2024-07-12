@@ -1,49 +1,59 @@
 ---
 - name: Create NFS share directory on control node
   file:
-    path: /srv/nfs/share
+    path: /srv/nfs
     state: directory
-    mode: '0755'
+  become: yes
 
 - name: Remove duplicate NFS export entries
   lineinfile:
     path: /etc/exports
+    regexp: "^/srv/nfs"
     state: absent
-    regexp: '^/srv/nfs/share 192.168.73.0/24'
+  become: yes
 
 - name: Ensure NFS export entry is present
   lineinfile:
     path: /etc/exports
-    line: "/srv/nfs/share 192.168.73.0/24(rw,sync,no_subtree_check,no_root_squash)"
-    state: present
-    create: yes
+    line: "/srv/nfs 192.168.177.0/24(rw,sync,no_subtree_check)"
+  become: yes
 
 - name: Re-export NFS shares
-  command: exportfs -ra
+  command: exportfs -a
+  become: yes
 
 - name: Restart NFS server
   service:
     name: nfs-kernel-server
     state: restarted
+  become: yes
 
-- name: Create mount point directory
+- name: Check if mount point directory exists
+  stat:
+    path: /mnt/nfs
+  register: mount_point_stat
+
+- name: Create mount point directory if it doesn't exist
   file:
     path: /mnt/nfs
     state: directory
-    mode: '0755'
+  become: yes
+  when: not mount_point_stat.stat.exists
 
 - name: Mount NFS share
   mount:
-    src: "{{ hostvars['control'].ansible_host }}:/srv/nfs/share"
+    src: "{{ hostvars['control']['ansible_host'] }}:/srv/nfs"
     path: /mnt/nfs
     fstype: nfs
     state: mounted
+    opts: rw
+  become: yes
 
 - name: Ensure NFS share is mounted at boot
   mount:
-    src: "{{ hostvars['control'].ansible_host }}:/srv/nfs/share"
+    src: "{{ hostvars['control']['ansible_host'] }}:/srv/nfs"
     path: /mnt/nfs
     fstype: nfs
     opts: defaults
     state: present
-
+  become: yes

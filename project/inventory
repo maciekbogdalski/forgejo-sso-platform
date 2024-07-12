@@ -1,7 +1,6 @@
 [control]
-control ansible_host=192.168.73.10
+control ansible_host=192.168.177.10 nfs_server_ip=192.168.177.10
 
-[targets]
-target1 ansible_host=192.168.73.11
-target2 ansible_host=192.168.73.12
-
+[target]
+target1 ansible_host=192.168.177.11
+target2 ansible_host=192.168.177.12
