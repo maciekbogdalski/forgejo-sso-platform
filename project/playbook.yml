@@ -388,3 +388,38 @@
     - name: Debug Traefik service status
       debug:
         var: traefik_service_status.stdout
+
+
+
+- name: Deploy Keycloak service in Docker Swarm
+  hosts: control
+  tasks:
+    - name: Deploy Keycloak service
+      command: >
+        docker service create --name keycloak
+        --replicas 1
+        --network webnet
+        --publish published=8080,target=8080
+        --publish published=8443,target=8443
+        --env KEYCLOAK_USER=admin
+        --env KEYCLOAK_PASSWORD=admin
+        --env DB_VENDOR=postgres
+        --env DB_ADDR=postgres
+        --env DB_DATABASE=keycloak
+        --env DB_USER=admin
+        --env DB_PASSWORD=mysecretpassword
+        --env KEYCLOAK_HOSTNAME=auth.vcc.local
+        --env KC_METRICS_ENABLED=true
+        --constraint 'node.role==manager'
+        quay.io/keycloak/keycloak:23.0.3 start --hostname-url=https://auth.vcc.local
+      register: keycloak_service_result
+      ignore_errors: true
+
+    - name: Verify Keycloak service deployment
+      command: docker service ls
+      register: keycloak_service_status
+      ignore_errors: true
+
+    - name: Debug Keycloak service status
+      debug:
+        var: keycloak_service_status.stdout
