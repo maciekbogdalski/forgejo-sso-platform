@@ -326,3 +326,65 @@
     - name: Display certificate details
       debug:
         var: cert_output.stdout
+
+
+- name: Deploy Traefik service in Docker Swarm
+  hosts: control
+  tasks:
+    - name: Create Docker Swarm network if not exists
+      command: docker network create --driver overlay traefik-net
+      ignore_errors: yes
+
+    - name: Create directory for Traefik certificates
+      file:
+        path: /etc/traefik/certs
+        state: directory
+
+    - name: Ensure /certs directory is readable
+      command: chmod -R 755 /certs
+      ignore_errors: yes
+
+    - name: Copy Traefik certificate files
+      copy:
+        src: /certs/
+        dest: /etc/traefik/certs/
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Deploy Traefik service
+      command: >
+        docker service create
+        --name traefik
+        --constraint 'node.role == manager'
+        --publish 80:80
+        --publish 443:443
+        --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock
+        --mount type=bind,source=/etc/traefik/certs,target=/certs
+        --network traefik-net
+        --label traefik.enable=true
+        --label traefik.http.routers.http-catchall.rule=hostregexp(`{host:.+}`)
+        --label traefik.http.routers.http-catchall.entrypoints=web
+        --label traefik.http.routers.http-catchall.middlewares=https-redirect
+        --label traefik.http.middlewares.https-redirect.redirectscheme.scheme=https
+        --label traefik.http.routers.https.rule=hostregexp(`{host:.+}`)
+        --label traefik.http.routers.https.entrypoints=websecure
+        --label traefik.http.routers.https.tls=true
+        --label traefik.http.routers.https.tls.certresolver=default
+        --label traefik.http.routers.https.service=api@internal
+        --label traefik.http.routers.https.tls.domains[0].main=*.vcc.local
+        --label traefik.http.routers.https.tls.certresolver=myresolver
+        --label traefik.metrics.prometheus=true
+        --label traefik.accesslog=true
+        --label traefik.http.services.traefik.loadbalancer.server.port=8080
+        traefik:v2.10.7
+      ignore_errors: yes
+
+    - name: Verify Traefik service deployment
+      shell: docker service ls | grep traefik
+      register: traefik_service_status
+      ignore_errors: yes
+
+    - name: Debug Traefik service status
+      debug:
+        var: traefik_service_status.stdout
