@@ -236,3 +236,38 @@
     - name: Debug login result
       debug:
         var: login_result
+
+- name: Deploy PostgreSQL database for applications
+  hosts: control
+  tasks:
+    - name: Create Docker Swarm network if not exists
+      command: docker network create --driver overlay webnet
+      ignore_errors: yes
+      register: create_network_result
+      changed_when: create_network_result.rc == 0
+
+    - name: Create volume for PostgreSQL data
+      command: docker volume create postgres_data
+      register: postgres_volume_result
+      changed_when: postgres_volume_result.rc == 0
+      become: yes
+
+    - name: Deploy PostgreSQL service
+      command: >
+        docker service create
+        --name postgres
+        --replicas 1
+        --network webnet
+        --mount type=volume,source=postgres_data,target=/var/lib/postgresql/data
+        -e POSTGRES_PASSWORD=mysecretpassword
+        -e POSTGRES_USER=admin
+        -e POSTGRES_DB=main
+        -e POSTGRES_MULTIPLE_DATABASES=forgejo,grafana,keycloak
+        postgres:16.1
+      register: postgres_service_result
+      changed_when: postgres_service_result.rc == 0
+      become: yes
+
+    - name: Debug PostgreSQL service result
+      debug:
+        var: postgres_service_result
