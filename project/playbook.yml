@@ -534,3 +534,65 @@
     - name: Wait for Forgejo to start
       pause:
         seconds: 60
+
+
+- name: Deploy Grafana service in Docker Swarm
+  hosts: control
+  tasks:
+    - name: Ensure Grafana directory exists
+      file:
+        path: /srv/grafana
+        state: directory
+        mode: '0755'
+      become: yes
+
+    - name: Copy custom entrypoint script to Grafana directory
+      copy:
+        src: ~/exam-2023-2024-vcc_mb/project/custom_grafana/entrypoint.sh
+        dest: /srv/grafana/entrypoint.sh
+        mode: '0755'
+      become: yes
+
+    - name: Create volume for Grafana data
+      command: docker volume create grafana_data
+      register: grafana_volume_result
+      changed_when: grafana_volume_result.rc == 0
+      become: yes
+
+    - name: Deploy Grafana service with custom entrypoint and config
+      command: >
+        docker service create --name grafana
+        --replicas 1
+        --network webnet
+        --publish published=3001,target=3000
+        --env GRAFANA_DB_HOST=postgres
+        --env GRAFANA_DB_USER=admin
+        --env GRAFANA_DB_PASSWORD=mysecretpassword
+        --env GRAFANA_DB_NAME=grafana
+        --env GF_SECURITY_ADMIN_USER=admin
+        --env GF_SECURITY_ADMIN_PASSWORD=adminpassword
+        --env GF_METRICS_ENABLED=true
+        --mount type=bind,source=/srv/grafana/entrypoint.sh,target=/entrypoint.sh
+        --mount type=volume,source=grafana_data,target=/var/lib/grafana
+        --mount type=bind,source=/certs,target=/certs
+        --constraint 'node.role==manager'
+        localhost:5000/grafana:custom-10.2.2
+      register: grafana_service_result
+      ignore_errors: yes
+
+    - name: Debug Grafana service deployment result
+      debug:
+        var: grafana_service_result
+
+    - name: Verify Grafana service deployment
+      command: docker service ls
+      register: grafana_service_status
+      ignore_errors: yes
+
+    - name: Debug Grafana service status
+      debug:
+        var: grafana_service_status.stdout
+
+    - name: Wait for Grafana to start
+      pause:
+        seconds: 60
