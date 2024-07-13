@@ -1,4 +1,3 @@
----
 - name: Ensure vagrant user is in the docker group
   hosts: all
   tasks:
@@ -111,11 +110,24 @@
           - docker-compose
       become: yes
 
+    - name: Create Docker Swarm network as attachable
+      command: docker network create --driver overlay --attachable webnet
+      ignore_errors: yes
+      register: create_network_result
+
+    - name: Check if Docker Swarm network was created
+      command: docker network ls
+      register: network_list
+
+    - name: Debug Docker Swarm network list
+      debug:
+        var: network_list.stdout
+
     - name: Create Docker Compose file for nginx
       copy:
         dest: /srv/nginx/docker-compose.yml
         content: |
-          version: '3.8'
+          version: '3.9'
           services:
             web:
               image: nginx:latest
@@ -125,7 +137,7 @@
                 - webnet
           networks:
             webnet:
-              driver: overlay
+              external: true
       become: yes
 
     - name: Deploy nginx service
@@ -272,8 +284,6 @@
       debug:
         var: postgres_service_result
 
-
-
 - name: Create OpenSSL configuration file for Traefik certificate
   hosts: control
   tasks:
@@ -318,7 +328,6 @@
         apt-get update && apt-get install -y openssl &&
         openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /certs/traefik.key -out /certs/traefik.crt -config /etc/traefik_cert/openssl.cnf -subj '/C=US/ST=Denial/L=Springfield/O=Dis/CN=traefik.vcc.local'"
 
-
     - name: Verify the Traefik certificate
       shell: openssl x509 -text -noout -in /certs/traefik.crt
       register: cert_output
@@ -326,7 +335,6 @@
     - name: Display certificate details
       debug:
         var: cert_output.stdout
-
 
 - name: Deploy Traefik service in Docker Swarm
   hosts: control
@@ -363,11 +371,11 @@
         --mount type=bind,source=/etc/traefik/certs,target=/certs
         --network traefik-net
         --label traefik.enable=true
-        --label traefik.http.routers.http-catchall.rule=hostregexp(`{host:.+}`)
+        --label traefik.http.routers.http-catchall.rule=HostRegexp('{host:.+}')
         --label traefik.http.routers.http-catchall.entrypoints=web
         --label traefik.http.routers.http-catchall.middlewares=https-redirect
         --label traefik.http.middlewares.https-redirect.redirectscheme.scheme=https
-        --label traefik.http.routers.https.rule=hostregexp(`{host:.+}`)
+        --label traefik.http.routers.https.rule=HostRegexp('{host:.+}')
         --label traefik.http.routers.https.entrypoints=websecure
         --label traefik.http.routers.https.tls=true
         --label traefik.http.routers.https.tls.certresolver=default
@@ -389,18 +397,42 @@
       debug:
         var: traefik_service_status.stdout
 
-
-
 - name: Deploy Keycloak service in Docker Swarm
   hosts: control
   tasks:
+    - name: Ensure Keycloak import directory exists
+      file:
+        path: /srv/keycloak/import
+        state: directory
+        mode: '0755'
+      become: yes
+
+    - name: Copy Keycloak realm import file
+      copy:
+        src: /home/vagrant/exam-2023-2024-vcc_mb/project/keycloak-20.0.3/bin/vcc-realm.json  # Update this path if needed
+        dest: /srv/keycloak/import/vcc-realm.json
+        owner: root
+        group: root
+        mode: '0644'
+      become: yes
+      
+
+    - name: Remove existing Keycloak service if any
+      command: docker service rm keycloak
+      ignore_errors: yes
+      register: remove_keycloak_service_result
+      changed_when: remove_keycloak_service_result.rc == 0
+
+    - name: Debug Keycloak service removal result
+      debug:
+        var: remove_keycloak_service_result
+
     - name: Deploy Keycloak service
       command: >
         docker service create --name keycloak
         --replicas 1
         --network webnet
-        --publish published=8080,target=8080
-        --publish published=8443,target=8443
+        --publish published=8180,target=8180
         --env KEYCLOAK_USER=admin
         --env KEYCLOAK_PASSWORD=admin
         --env DB_VENDOR=postgres
@@ -409,17 +441,26 @@
         --env DB_USER=admin
         --env DB_PASSWORD=mysecretpassword
         --env KEYCLOAK_HOSTNAME=auth.vcc.local
-        --env KC_METRICS_ENABLED=true
+        --env KEYCLOAK_IMPORT=/opt/keycloak/data/import/vcc-realm.json
         --constraint 'node.role==manager'
-        quay.io/keycloak/keycloak:23.0.3 start --hostname-url=https://auth.vcc.local
+        --mount type=bind,source=/srv/keycloak/import,target=/opt/keycloak/data/import
+        quay.io/keycloak/keycloak:23.0.3 start-dev --http-port=8180 --hostname-url=http://auth.vcc.local
       register: keycloak_service_result
-      ignore_errors: true
+      ignore_errors: yes
+
+    - name: Debug Keycloak service deployment result
+      debug:
+        var: keycloak_service_result
 
     - name: Verify Keycloak service deployment
       command: docker service ls
       register: keycloak_service_status
-      ignore_errors: true
+      ignore_errors: yes
 
     - name: Debug Keycloak service status
       debug:
         var: keycloak_service_status.stdout
+
+    - name: Wait for Keycloak to start
+      pause:
+        seconds: 120
