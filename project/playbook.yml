@@ -240,7 +240,7 @@
   hosts: all
   tasks:
     - name: Login to Docker registry
-      command: echo mypassword | docker login -u myuser --password-stdin https://your-registry-url
+      command: echo mypassword | docker login -u myuser --password-stdin https://localhost:5000
       register: login_result
       ignore_errors: yes
       become: yes
@@ -415,7 +415,6 @@
         group: root
         mode: '0644'
       become: yes
-      
 
     - name: Remove existing Keycloak service if any
       command: docker service rm keycloak
@@ -464,3 +463,74 @@
     - name: Wait for Keycloak to start
       pause:
         seconds: 120
+
+- name: Deploy Customized Forgejo Service in Docker Swarm
+  hosts: control
+  tasks:
+    - name: Ensure Forgejo directory exists
+      file:
+        path: /srv/forgejo
+        state: directory
+        mode: '0755'
+      become: yes
+
+    - name: Copy custom entrypoint script to Forgejo directory
+      copy:
+        src: configs/images/forgejo/entrypoint.sh
+        dest: /srv/forgejo/entrypoint.sh
+        mode: '0755'
+      become: yes
+
+    - name: Copy customized forgejo.ini to Forgejo directory
+      copy:
+        src: templates/forgejo.ini
+        dest: /srv/forgejo/forgejo.ini
+        mode: '0644'
+      become: yes
+
+    - name: Create volume for Forgejo data
+      command: docker volume create forgejo_data
+      register: forgejo_volume_result
+      changed_when: forgejo_volume_result.rc == 0
+      become: yes
+
+    - name: Deploy Forgejo service with custom entrypoint and config
+      command: >
+        docker service create --name forgejo
+        --replicas 1
+        --network webnet
+        --publish published=3000,target=3000
+        --env FORGEJO_DB_TYPE=postgres
+        --env FORGEJO_DB_HOST=postgres
+        --env FORGEJO_DB_NAME=forgejo
+        --env FORGEJO_DB_USER=admin
+        --env FORGEJO_DB_PASSWD=mysecretpassword
+        --env FORGEJO_SECRET_KEY=your_secret_key
+        --env FORGEJO_DOMAIN=https://git.vcc.local
+        --env FORGEJO_SSO_ENABLE=true
+        --env ADMIN_PASSWORD=adminpassword
+        --constraint 'node.role==manager'
+        --mount type=bind,source=/srv/forgejo/entrypoint.sh,target=/entrypoint.sh
+        --mount type=bind,source=/srv/forgejo/forgejo.ini,target=/data/gitea/conf/app.ini
+        --mount type=volume,source=forgejo_data,target=/data
+        --mount type=bind,source=/certs,target=/certs
+        localhost:5000/forgejo:custom-1.21
+      register: forgejo_service_result
+      ignore_errors: yes
+
+    - name: Debug Forgejo service deployment result
+      debug:
+        var: forgejo_service_result
+
+    - name: Verify Forgejo service deployment
+      command: docker service ls
+      register: forgejo_service_status
+      ignore_errors: yes
+
+    - name: Debug Forgejo service status
+      debug:
+        var: forgejo_service_status.stdout
+
+    - name: Wait for Forgejo to start
+      pause:
+        seconds: 60
