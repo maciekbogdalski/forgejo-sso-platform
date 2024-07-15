@@ -690,3 +690,76 @@
     - name: Debug Traefik configuration result
       debug:
         var: traefik_prometheus_result
+
+
+- name: Ensure Loki directory exists
+  hosts: control
+  tasks:
+    - name: Create /srv/loki directory
+      file:
+        path: /srv/loki
+        state: directory
+        mode: '0755'
+      become: yes
+
+    - name: Copy Loki configuration file
+      copy:
+        src: /home/vagrant/exam-2023-2024-vcc_mb/project/srv/loki/loki-config.yml
+        dest: /srv/loki/loki-config.yml
+        mode: '0644'
+      become: yes
+
+    - name: Copy Docker Compose file for Loki
+      copy:
+        src: /home/vagrant/exam-2023-2024-vcc_mb/project/srv/loki/docker-compose.yml
+        dest: /srv/loki/docker-compose.yml
+        mode: '0644'
+      become: yes
+
+- name: Deploy Loki service in Docker Swarm
+  hosts: control
+  tasks:
+    - name: Create volume for Loki data
+      command: docker volume create loki_data
+      register: loki_volume_result
+      changed_when: loki_volume_result.rc == 0
+      become: yes
+
+    - name: Debug volume creation result
+      debug:
+        var: loki_volume_result
+
+    - name: Deploy Loki service
+      command: docker stack deploy -c /srv/loki/docker-compose.yml loki
+      register: loki_service_result
+      changed_when: loki_service_result.rc == 0
+      become: yes
+      ignore_errors: true
+
+    - name: Check if Loki deployment timed out
+      debug:
+        msg: "Loki deployment {{ 'timed out' if loki_service_result.failed else 'completed successfully' }}"
+
+    - name: Gather Loki service logs if deployment failed
+      when: loki_service_result.failed
+      command: docker service logs loki
+      register: loki_service_logs
+      ignore_errors: yes
+
+    - name: Debug Loki service logs if deployment failed
+      when: loki_service_result.failed
+      debug:
+        var: loki_service_logs.stdout
+
+    - name: Verify Loki service deployment
+      command: docker service ls
+      register: loki_service_status
+      ignore_errors: yes
+
+    - name: Debug Loki service status
+      debug:
+        var: loki_service_status.stdout
+
+    - name: Wait for Loki to start
+      pause:
+        seconds: 60
