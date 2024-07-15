@@ -596,3 +596,97 @@
     - name: Wait for Grafana to start
       pause:
         seconds: 60
+
+
+- name: Deploy Prometheus service in Docker Swarm
+  hosts: control
+  tasks:
+    - name: Ensure Prometheus directory exists
+      file:
+        path: /srv/prometheus
+        state: directory
+        mode: '0755'
+      become: yes
+
+    - name: Copy Prometheus configuration file
+      copy:
+        src: /home/vagrant/exam-2023-2024-vcc_mb/project/prometheus/prometheus.yml
+        dest: /srv/prometheus/prometheus.yml
+        mode: '0644'
+      become: yes
+
+    - name: Create volume for Prometheus data
+      command: docker volume create prometheus_data
+      register: prometheus_volume_result
+      changed_when: prometheus_volume_result.rc == 0
+      become: yes
+
+    - name: Debug volume creation result
+      debug:
+        var: prometheus_volume_result
+
+    - name: Deploy Prometheus service
+      command: >
+        docker service create --name prometheus
+        --replicas 1
+        --network webnet
+        --publish published=9090,target=9090
+        --mount type=bind,source=/srv/prometheus/prometheus.yml,target=/etc/prometheus/prometheus.yml
+        --mount type=volume,source=prometheus_data,target=/prometheus
+        --constraint 'node.role==manager'
+        quay.io/prometheus/prometheus:v2.48.1
+        --config.file=/etc/prometheus/prometheus.yml
+        --storage.tsdb.path=/prometheus
+        --storage.tsdb.retention.time=14d
+      async: 600  # Set timeout to 10 minutes
+      poll: 5
+      register: prometheus_service_result
+      changed_when: prometheus_service_result.rc == 0
+      become: yes
+      ignore_errors: true
+
+    - name: Check if Prometheus deployment timed out
+      debug:
+        msg: "Prometheus deployment {{ 'timed out' if prometheus_service_result.failed else 'completed successfully' }}"
+
+    - name: Gather Prometheus service logs if deployment failed
+      when: prometheus_service_result.failed
+      command: docker service logs prometheus
+      register: prometheus_service_logs
+      ignore_errors: yes
+
+    - name: Debug Prometheus service logs if deployment failed
+      when: prometheus_service_result.failed
+      debug:
+        var: prometheus_service_logs.stdout
+
+    - name: Verify Prometheus service deployment
+      command: docker service ls
+      register: prometheus_service_status
+      ignore_errors: yes
+
+    - name: Debug Prometheus service status
+      debug:
+        var: prometheus_service_status.stdout
+
+    - name: Wait for Prometheus to start
+      pause:
+        seconds: 60
+
+- name: Expose Prometheus via Traefik
+  hosts: control
+  tasks:
+    - name: Deploy Traefik configuration for Prometheus
+      command: >
+        docker service update
+        --label-add traefik.http.routers.prometheus.rule=Host(`prom.vcc.local`)
+        --label-add traefik.http.routers.prometheus.entrypoints=websecure
+        --label-add traefik.http.routers.prometheus.tls=true
+        --label-add traefik.http.services.prometheus.loadbalancer.server.port=9090
+        prometheus
+      register: traefik_prometheus_result
+      ignore_errors: yes
+
+    - name: Debug Traefik configuration result
+      debug:
+        var: traefik_prometheus_result

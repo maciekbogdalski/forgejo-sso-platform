@@ -1,0 +1,53 @@
+version: '3.7'
+
+services:
+  traefik:
+    image: traefik:v2.10.7
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.myresolver.acme.email=maciekbogdalski@gmail.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/acme.json"
+      - "--entrypoints.traefik.address=:8080"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./acme.json:/acme.json"
+      - "./traefik.yml:/etc/traefik/traefik.yml"
+      - "./dynamic/dynamic_conf.yml:/etc/traefik/dynamic/dynamic_conf.yml"
+      - "./cert.pem:/certs/cert.pem"
+      - "./key.pem:/certs/key.pem"
+    networks:
+      - web
+      - traefik-net
+
+  prometheus:
+    image: quay.io/prometheus/prometheus:v2.48.1
+    volumes:
+      - prometheus_data:/prometheus
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--storage.tsdb.retention.time=14d'
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prom.vcc.local`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls=true"
+      - "traefik.http.routers.prometheus.tls.certresolver=myresolver"
+    networks:
+      - web
+      - traefik-net
+
+volumes:
+  prometheus_data:
+
+networks:
+  web:
+  traefik-net:
