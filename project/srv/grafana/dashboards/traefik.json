@@ -1,0 +1,25 @@
+{
+  "id": null,
+  "title": "Traefik Metrics and Logs",
+  "panels": [
+    {
+      "type": "graph",
+      "title": "Traefik Requests",
+      "targets": [
+        {
+          "expr": "sum(rate(traefik_http_requests_total[1m]))",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Traefik Logs",
+      "targets": [
+        {
+          "expr": "{job=\"traefik\"}"
+        }
+      ]
+    }
+  ]
+}

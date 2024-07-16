@@ -876,3 +876,37 @@
     - name: Wait for Promtail to start
       pause:
         seconds: 60
+
+
+- name: Ensure Prometheus directory exists
+  hosts: control
+  tasks:
+    - name: Copy Prometheus configuration file
+      copy:
+        src: ~/exam-2023-2024-vcc_mb/project/prometheus/prometheus.yml
+        dest: /srv/prometheus/prometheus.yml
+      become: yes
+
+    - name: Restart Prometheus service
+      shell: docker service update --force prometheus
+      become: yes
+
+- name: Ensure Grafana dashboards are provisioned
+  hosts: control
+  tasks:
+    - name: Copy Grafana provisioning configuration
+      copy:
+        src: ~/exam-2023-2024-vcc_mb/project/grafana/provisioning/dashboards/dashboards.yml
+        dest: /srv/grafana/provisioning/dashboards/dashboards.yml
+      become: yes
+
+    - name: Copy Grafana dashboards
+      synchronize:
+        src: ~/exam-2023-2024-vcc_mb/project/grafana/dashboards/
+        dest: /srv/grafana/dashboards/
+        recursive: yes
+      become: yes
+
+    - name: Restart Grafana service
+      shell: docker service update --force grafana
+      become: yes

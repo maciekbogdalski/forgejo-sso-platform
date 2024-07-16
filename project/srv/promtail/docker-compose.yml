@@ -1,0 +1,80 @@
+version: '3.7'
+
+services:
+  promtail:
+    image: grafana/promtail:2.9.1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./promtail.yml:/etc/promtail/promtail.yml
+    networks:
+      - web
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.promtail.rule=Host(`promtail.vcc.local`)"
+      - "traefik.http.routers.promtail.entrypoints=websecure"
+      - "traefik.http.routers.promtail.tls=true"
+      - "traefik.http.routers.promtail.tls.certresolver=myresolver"
+    command:
+      - -config.file=/etc/promtail/promtail.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=adminpassword
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - web
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.vcc.local`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.routers.grafana.tls.certresolver=myresolver"
+
+  fluent-bit:
+    image: fluent/fluent-bit:1.8
+    ports:
+      - "2020:2020"
+    networks:
+      - web
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fluent-bit.rule=Host(`fluent-bit.vcc.local`)"
+      - "traefik.http.routers.fluent-bit.entrypoints=websecure"
+      - "traefik.http.routers.fluent-bit.tls=true"
+      - "traefik.http.routers.fluent-bit.tls.certresolver=myresolver"
+
+  prometheus:
+    image: quay.io/prometheus/prometheus:v2.48.1
+    volumes:
+      - prometheus_data:/prometheus
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--storage.tsdb.retention.time=14d'
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - web
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prom.vcc.local`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls=true"
+      - "traefik.http.routers.prometheus.tls.certresolver=myresolver"
+
+networks:
+  web:
+  traefik-net:
+
+volumes:
+  grafana_data:
+  prometheus_data:

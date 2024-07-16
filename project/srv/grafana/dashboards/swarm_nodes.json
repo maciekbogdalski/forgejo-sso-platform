@@ -1,0 +1,26 @@
+{
+  "id": null,
+  "title": "Swarm Nodes Metrics",
+  "panels": [
+    {
+      "type": "graph",
+      "title": "Node CPU Usage",
+      "targets": [
+        {
+          "expr": "sum(rate(node_cpu_seconds_total[1m])) by (instance)",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Node Memory Usage",
+      "targets": [
+        {
+          "expr": "sum(node_memory_MemAvailable_bytes) by (instance)",
+          "format": "time_series"
+        }
+      ]
+    }
+  ]
+}
