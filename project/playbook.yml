@@ -763,3 +763,116 @@
     - name: Wait for Loki to start
       pause:
         seconds: 60
+
+
+
+- name: Ensure Promtail directory exists
+  hosts: control
+  tasks:
+    - name: Create /srv/promtail directory
+      file:
+        path: /srv/promtail
+        state: directory
+      become: yes
+
+    - name: Copy Promtail configuration file
+      copy:
+        dest: /srv/promtail/promtail.yml
+        content: |
+          server:
+            http_listen_port: 9080
+            grpc_listen_port: 0
+
+          positions:
+            filename: /tmp/positions.yaml
+
+          clients:
+            - url: http://loki:3100/loki/api/v1/push
+
+          scrape_configs:
+            - job_name: docker
+              docker_sd_configs:
+                - host: unix:///var/run/docker.sock
+              relabel_configs:
+                - source_labels: [__meta_docker_container_label_com_docker_swarm_service_name]
+                  target_label: swarm_service
+              pipeline_stages:
+                - docker: {}
+      become: yes
+
+    - name: Copy Docker Compose file for Promtail
+      copy:
+        dest: /srv/promtail/docker-compose.yml
+        content: |
+          version: '3.7'
+
+          services:
+            promtail:
+              image: grafana/promtail:2.9.1
+              volumes:
+                - /var/run/docker.sock:/var/run/docker.sock:ro
+                - ./promtail.yml:/etc/promtail/promtail.yml
+              networks:
+                - web
+                - traefik-net
+              labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.promtail.rule=Host(`promtail.vcc.local`)"
+                - "traefik.http.routers.promtail.entrypoints=websecure"
+                - "traefik.http.routers.promtail.tls=true"
+                - "traefik.http.routers.promtail.tls.certresolver=myresolver"
+              command:
+                - -config.file=/etc/promtail/promtail.yml
+
+          networks:
+            web:
+            traefik-net:
+      become: yes
+
+- name: Deploy Promtail service in Docker Swarm
+  hosts: control
+  tasks:
+    - name: Create volume for Promtail data
+      command: docker volume create promtail_data
+      register: promtail_volume_result
+      changed_when: promtail_volume_result.rc == 0
+      become: yes
+
+    - name: Debug volume creation result
+      debug:
+        var: promtail_volume_result
+
+    - name: Deploy Promtail service
+      command: docker stack deploy -c /srv/promtail/docker-compose.yml promtail
+      register: promtail_service_result
+      changed_when: promtail_service_result.rc == 0
+      become: yes
+      ignore_errors: true
+
+    - name: Check if Promtail deployment timed out
+      debug:
+        msg: "Promtail deployment {{ 'timed out' if promtail_service_result.failed else 'completed successfully' }}"
+
+    - name: Gather Promtail service logs if deployment failed
+      when: promtail_service_result.failed
+      command: docker service logs promtail
+      register: promtail_service_logs
+      ignore_errors: yes
+
+    - name: Debug Promtail service logs if deployment failed
+      when: promtail_service_result.failed
+      debug:
+        var: promtail_service_logs.stdout
+
+    - name: Verify Promtail service deployment
+      command: docker service ls
+      register: promtail_service_status
+      ignore_errors: yes
+
+    - name: Debug Promtail service status
+      debug:
+        var: promtail_service_status.stdout
+
+    - name: Wait for Promtail to start
+      pause:
+        seconds: 60
