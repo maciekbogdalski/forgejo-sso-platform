@@ -1,0 +1,11 @@
+cat <<EOF > ~/exam-2023-2024-vcc_mb/project/grafana/provisioning/dashboards/dashboards.yml
+apiVersion: 1
+
+providers:
+  - name: 'default'
+    orgId: 1
+    folder: ''
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards
+EOF
