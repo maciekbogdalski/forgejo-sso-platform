@@ -5,7 +5,7 @@
   when: inventory_hostname == 'control'
 
 - name: Initialize Docker Swarm on manager
-  command: docker swarm init --advertise-addr 192.168.177.10
+  command: docker swarm init --advertise-addr 192.168.231.10
   register: swarm_init
   when: inventory_hostname == 'control'
 
@@ -25,6 +25,6 @@
   when: inventory_hostname != 'control'
 
 - name: Join Docker Swarm as worker
-  command: docker swarm join --token {{ hostvars['control'].swarm_worker_join_token }} 192.168.177.10:2377
+  command: docker swarm join --token {{ hostvars['control'].swarm_worker_join_token }} 192.168.231.10:2377
   when: inventory_hostname != 'control'
 

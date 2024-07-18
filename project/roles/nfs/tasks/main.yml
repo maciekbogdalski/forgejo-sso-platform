@@ -5,18 +5,6 @@
     state: directory
   become: yes
 
-- name: Remove duplicate NFS export entries
-  lineinfile:
-    path: /etc/exports
-    regexp: "^/srv/nfs"
-    state: absent
-  become: yes
-
-- name: Ensure NFS export entry is present
-  lineinfile:
-    path: /etc/exports
-    line: "/srv/nfs 192.168.177.0/24(rw,sync,no_subtree_check)"
-  become: yes
 
 - name: Re-export NFS shares
   command: exportfs -a

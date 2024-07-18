@@ -1,4 +1,3 @@
-
 - name: Ensure vagrant user is in the docker group
   hosts: all
   tasks:
@@ -250,14 +249,19 @@
       debug:
         var: login_result
 
+
 - name: Deploy PostgreSQL database for applications
   hosts: control
   tasks:
     - name: Create Docker Swarm network if not exists
       command: docker network create --driver overlay webnet
-      ignore_errors: yes
+      ignore_errors: true
       register: create_network_result
       changed_when: create_network_result.rc == 0
+
+    - name: Debug network creation result
+      debug:
+        var: create_network_result
 
     - name: Create volume for PostgreSQL data
       command: docker volume create postgres_data
@@ -265,7 +269,29 @@
       changed_when: postgres_volume_result.rc == 0
       become: yes
 
-    - name: Deploy PostgreSQL service
+    - name: Debug volume creation result
+      debug:
+        var: postgres_volume_result
+
+    - name: Remove existing PostgreSQL service if any
+      command: docker service rm postgres
+      ignore_errors: true
+      register: remove_postgres_service_result
+      changed_when: remove_postgres_service_result.rc == 0
+      become: yes
+
+    - name: Debug PostgreSQL service removal result
+      debug:
+        var: remove_postgres_service_result
+
+- name: Deploy PostgreSQL service
+  hosts: control
+  tasks:
+    - name: Ensure PostgreSQL service is removed if it exists
+      command: docker service rm postgres
+      ignore_errors: true
+
+    - name: Create PostgreSQL service
       command: >
         docker service create
         --name postgres
@@ -276,14 +302,25 @@
         -e POSTGRES_USER=admin
         -e POSTGRES_DB=main
         -e POSTGRES_MULTIPLE_DATABASES=forgejo,grafana,keycloak
-        postgres:16.1
-      register: postgres_service_result
-      changed_when: postgres_service_result.rc == 0
-      become: yes
+        --log-driver json-file
+        --log-opt max-size=10m
+        --log-opt max-file=3
+        postgres:16.3
+      register: create_postgres_service
+      async: 60
+      poll: 10
 
-    - name: Debug PostgreSQL service result
+    - name: Check if PostgreSQL service is running
+      command: docker service ps postgres
+      register: postgres_service_status
+      retries: 5
+      delay: 15
+      until: postgres_service_status.stdout.find('Running') != -1
+
+    - name: Debug PostgreSQL service status
       debug:
-        var: postgres_service_result
+        var: postgres_service_status.stdout
+
 
 - name: Create OpenSSL configuration file for Traefik certificate
   hosts: control
@@ -465,6 +502,7 @@
       pause:
         seconds: 120
 
+
 - name: Deploy Customized Forgejo Service in Docker Swarm
   hosts: control
   tasks:
@@ -494,6 +532,29 @@
       register: forgejo_volume_result
       changed_when: forgejo_volume_result.rc == 0
       become: yes
+
+    - name: Check if Forgejo Docker image exists
+      command: docker images -q localhost:5000/forgejo:custom-1.21
+      register: forgejo_image_check
+      ignore_errors: yes
+
+    - name: Build Forgejo Docker image
+      command: docker build -t localhost:5000/forgejo:custom-1.21 /path/to/Dockerfile/directory
+      when: forgejo_image_check.stdout == ""
+      register: build_forgejo_image_result
+      changed_when: build_forgejo_image_result.rc == 0
+      become: yes
+
+    - name: Remove existing Forgejo service if any
+      command: docker service rm forgejo
+      ignore_errors: yes
+      register: remove_forgejo_service_result
+      changed_when: remove_forgejo_service_result.rc == 0
+      become: yes
+
+    - name: Debug Forgejo service removal result
+      debug:
+        var: remove_forgejo_service_result
 
     - name: Deploy Forgejo service with custom entrypoint and config
       command: >
@@ -537,6 +598,7 @@
         seconds: 60
 
 
+
 - name: Deploy Grafana service in Docker Swarm
   hosts: control
   tasks:
@@ -549,7 +611,7 @@
 
     - name: Copy custom entrypoint script to Grafana directory
       copy:
-        src: ~/exam-2023-2024-vcc_mb/project/custom_grafana/entrypoint.sh
+        src: /home/vagrant/exam-2023-2024-vcc_mb/project/custom_grafana/entrypoint.sh
         dest: /srv/grafana/entrypoint.sh
         mode: '0755'
       become: yes
@@ -559,6 +621,29 @@
       register: grafana_volume_result
       changed_when: grafana_volume_result.rc == 0
       become: yes
+
+    - name: Check if Grafana Docker image exists
+      command: docker images -q localhost:5000/grafana:custom-10.2.2
+      register: grafana_image_check
+      ignore_errors: yes
+
+    - name: Build Grafana Docker image
+      command: docker build -t localhost:5000/grafana:custom-10.2.2 /home/vagrant/exam-2023-2024-vcc_mb/project/custom_grafana
+      when: grafana_image_check.stdout == ""
+      register: build_grafana_image_result
+      changed_when: build_grafana_image_result.rc == 0
+      become: yes
+
+    - name: Remove existing Grafana service if any
+      command: docker service rm grafana
+      ignore_errors: yes
+      register: remove_grafana_service_result
+      changed_when: remove_grafana_service_result.rc == 0
+      become: yes
+
+    - name: Debug Grafana service removal result
+      debug:
+        var: remove_grafana_service_result
 
     - name: Deploy Grafana service with custom entrypoint and config
       command: >
@@ -597,6 +682,8 @@
     - name: Wait for Grafana to start
       pause:
         seconds: 60
+
+
 
 
 - name: Deploy Prometheus service in Docker Swarm
@@ -893,18 +980,33 @@
       shell: docker service update --force prometheus
       become: yes
 
+
 - name: Ensure Grafana dashboards are provisioned
   hosts: control
   tasks:
+    - name: Ensure Grafana provisioning directory exists
+      file:
+        path: /srv/grafana/provisioning
+        state: directory
+        mode: '0755'
+      become: yes
+
+    - name: Ensure Grafana dashboards directory exists
+      file:
+        path: /srv/grafana/provisioning/dashboards
+        state: directory
+        mode: '0755'
+      become: yes
+
     - name: Copy Grafana provisioning configuration
       copy:
-        src: ~/exam-2023-2024-vcc_mb/project/grafana/provisioning/dashboards/dashboards.yml
+        src: /home/vagrant/exam-2023-2024-vcc_mb/project/grafana/provisioning/dashboards/dashboards.yml
         dest: /srv/grafana/provisioning/dashboards/dashboards.yml
       become: yes
 
     - name: Copy Grafana dashboards
       copy:
-        src: ~/exam-2023-2024-vcc_mb/project/grafana/dashboards/
+        src: /home/vagrant/exam-2023-2024-vcc_mb/project/grafana/dashboards/
         dest: /srv/grafana/dashboards/
         owner: root
         group: root
@@ -915,6 +1017,7 @@
     - name: Restart Grafana service
       shell: docker service update --force grafana
       become: yes
+
 
 - name: Ensure Prometheus scrapes Loki and Promtail
   hosts: control
@@ -929,9 +1032,25 @@
       shell: docker service update --force prometheus
       become: yes
 
+
+
 - name: Ensure metrics from nodes can be attributed to a specific node
   hosts: control
   tasks:
+    - name: Ensure Promtail configuration directory exists
+      file:
+        path: /srv/promtail
+        state: directory
+        mode: '0755'
+      become: yes
+
+    - name: Ensure Promtail positions file exists
+      file:
+        path: /tmp/positions.yaml
+        state: touch
+        mode: '0644'
+      become: yes
+
     - name: Ensure Promtail configuration includes node and service labels
       copy:
         dest: /srv/promtail/promtail.yml
@@ -959,9 +1078,47 @@
                 - docker: {}
       become: yes
 
+    - name: Verify the Promtail configuration file
+      stat:
+        path: /srv/promtail/promtail.yml
+      register: promtail_config_file
+
+    - name: Debug Promtail configuration file existence
+      debug:
+        var: promtail_config_file
+
+    - name: Fail if Promtail configuration file does not exist
+      fail:
+        msg: "The Promtail configuration file does not exist at /srv/promtail/promtail.yml"
+      when: not promtail_config_file.stat.exists
+
+    - name: Ensure Promtail directory structure exists
+      file:
+        path: /srv/promtail/data
+        state: directory
+        mode: '0755'
+      become: yes
+
     - name: Restart Promtail service
       shell: docker service update --force promtail_promtail
       become: yes
+      ignore_errors: yes
+      register: promtail_service_result
+
+    - name: Debug Promtail service restart result
+      debug:
+        var: promtail_service_result
+
+    - name: Verify Promtail service deployment
+      command: docker service ls
+      register: promtail_service_status
+      ignore_errors: yes
+
+    - name: Debug Promtail service status
+      debug:
+        var: promtail_service_status.stdout
+
+
 
 - name: Using dockerswarm_sd_config nodes mode to make Prometheus scrape the endpoint
   hosts: control
@@ -1021,4 +1178,3 @@
     - name: Restart Prometheus service
       shell: docker service update --force prometheus
       become: yes
-
