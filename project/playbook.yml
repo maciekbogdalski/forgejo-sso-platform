@@ -539,7 +539,7 @@
       ignore_errors: yes
 
     - name: Build Forgejo Docker image
-      command: docker build -t localhost:5000/forgejo:custom-1.21 /path/to/Dockerfile/directory
+      command: docker build -t localhost:5000/forgejo:custom-1.21 /home/vagrant/exam-2023-2024-vcc_mb/project/custom_forgejo
       when: forgejo_image_check.stdout == ""
       register: build_forgejo_image_result
       changed_when: build_forgejo_image_result.rc == 0
