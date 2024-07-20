@@ -901,7 +901,7 @@
               image: grafana/promtail:2.9.1
               volumes:
                 - /var/run/docker.sock:/var/run/docker.sock:ro
-                - ./promtail.yml:/etc/promtail/promtail.yml
+                - /srv/promtail/promtail.yml:/etc/promtail/promtail.yml
               networks:
                 - web
                 - traefik-net
@@ -1099,15 +1099,22 @@
         mode: '0755'
       become: yes
 
-    - name: Restart Promtail service
-      shell: docker service update --force promtail_promtail
-      become: yes
+    - name: Remove existing Promtail service if exists
+      shell: docker service rm promtail_promtail
       ignore_errors: yes
-      register: promtail_service_result
+      become: yes
 
-    - name: Debug Promtail service restart result
-      debug:
-        var: promtail_service_result
+    - name: Wait for Promtail service removal to complete
+      pause:
+        seconds: 10
+
+    - name: Deploy Promtail service using Docker Compose
+      shell: docker stack deploy -c /srv/promtail/docker-compose.yml promtail
+      become: yes
+
+    - name: Wait for Promtail service deployment to complete
+      pause:
+        seconds: 10
 
     - name: Verify Promtail service deployment
       command: docker service ls
