@@ -13,15 +13,6 @@
         append: yes
       become: yes
 
-- name: Install required Ansible collections
-  hosts: localhost
-  tasks:
-    - name: Install community.docker collection
-      ansible.builtin.command:
-        cmd: ansible-galaxy collection install community.docker
-      become: true
-
-
 - name: Docker setup
   hosts: all
   tasks:
@@ -172,6 +163,8 @@
       debug:
         var: docker_services_status.stdout
 
+
+
 - name: Configure Docker Registry with Authentication and HTTPS
   hosts: control
   tasks:
@@ -303,7 +296,9 @@
   tasks:
     - name: Ensure PostgreSQL service is removed if it exists
       command: docker service rm postgres
-      ignore_errors: true
+      ignore_errors: yes
+      register: remove_postgres_service_result
+      failed_when: "remove_postgres_service_result.rc not in [0, 1]"
 
     - name: Create PostgreSQL service
       command: >
@@ -322,18 +317,19 @@
         postgres:16.3
       register: create_postgres_service
       async: 60
-      poll: 10
+      poll: 15
 
     - name: Check if PostgreSQL service is running
       command: docker service ps postgres
       register: postgres_service_status
-      retries: 5
+      retries: 10
       delay: 15
       until: postgres_service_status.stdout.find('Running') != -1
 
     - name: Debug PostgreSQL service status
       debug:
         var: postgres_service_status.stdout
+
 
 
 - name: Create OpenSSL configuration file for Traefik certificate

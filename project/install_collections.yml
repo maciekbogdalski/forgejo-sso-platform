@@ -1,8 +1,7 @@
 ---
 - name: Install required Ansible collections
   hosts: localhost
+  become: yes
   tasks:
-    - name: Install community.docker collection
-      ansible.builtin.command:
-        cmd: ansible-galaxy collection install community.docker
-      become: true
+    - name: Run Docker collection installation script
+      shell: ./install_docker_collection.sh

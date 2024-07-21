@@ -2,7 +2,7 @@
 
 # Define variables
 NUM_TARGET=2
-MYNET="192.168.177"
+MYNET=192.168.177
 SSH_KEY_PATH="/home/vagrant/.ssh/id_rsa_vcc"
 
 # Function to wait for SSH service on target VMs
