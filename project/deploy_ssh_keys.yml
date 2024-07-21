@@ -1,0 +1,7 @@
+---
+- name: Execute setup_ssh_keys.sh script
+  hosts: control
+  tasks:
+    - name: Run setup_ssh_keys.sh
+      command: /home/vagrant/exam-2023-2024-vcc_mb/project/setup_ssh_keys.sh
+      become: true

@@ -7,6 +7,8 @@ ping:
 	ansible -i inventory all -m ping
 
 setup-all:
+	ansible-playbook -i inventory install_collections.yml
+	ansible-playbook -i inventory deploy_ssh_keys.yml
 	ansible-playbook -i inventory playbook.yml --ask-vault-pass
 
 setup-services:
@@ -30,10 +32,11 @@ generate-ssh-key:
 	fi
 
 distribute-ssh-key:
-	@for host in 192.168.231.10 192.168.231.11 192.168.231.12; do \
+	@for host in 192.168.177.10 192.168.177.11 192.168.177.12; do \
 		sshpass -p "vagrant" ssh-copy-id -i $(SSH_KEY_PATH).pub vagrant@$$host; \
 	done
 
 run-playbook:
+	ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory install_collections.yml
+	ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory deploy_ssh_keys.yml
 	ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory playbook.yml --extra-vars "ansible_ssh_private_key_file=$(SSH_KEY_PATH)"
-
