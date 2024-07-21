@@ -1,12 +1,26 @@
+---
 - name: Ensure vagrant user is in the docker group
-  hosts: all
+  hosts: control
   tasks:
+    - name: Execute setup_ssh_keys.sh script
+      command: /home/vagrant/exam-2023-2024-vcc_mb/project/setup_ssh_keys.sh
+      become: true
+
     - name: Add vagrant user to docker group
       user:
         name: vagrant
         groups: docker
         append: yes
       become: yes
+
+- name: Install required Ansible collections
+  hosts: localhost
+  tasks:
+    - name: Install community.docker collection
+      ansible.builtin.command:
+        cmd: ansible-galaxy collection install community.docker
+      become: true
+
 
 - name: Docker setup
   hosts: all
