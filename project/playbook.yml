@@ -695,7 +695,6 @@
 
 
 
-
 - name: Deploy Prometheus service in Docker Swarm
   hosts: control
   tasks:
@@ -708,7 +707,7 @@
 
     - name: Copy Prometheus configuration file
       copy:
-        src: /home/vagrant/exam-2023-2024-vcc_mb/project/prometheus/prometheus.yml
+        src: prometheus/prometheus.yml
         dest: /srv/prometheus/prometheus.yml
         mode: '0644'
       become: yes
@@ -770,6 +769,8 @@
     - name: Wait for Prometheus to start
       pause:
         seconds: 60
+
+
 
 - name: Expose Prometheus via Traefik
   hosts: control
@@ -982,7 +983,7 @@
   tasks:
     - name: Copy Prometheus configuration file
       copy:
-        src: ~/exam-2023-2024-vcc_mb/project/prometheus/prometheus.yml
+        src: prometheus/prometheus.yml
         dest: /srv/prometheus/prometheus.yml
       become: yes
 
@@ -1034,7 +1035,7 @@
   tasks:
     - name: Copy Prometheus configuration file
       copy:
-        src: ~/exam-2023-2024-vcc_mb/project/prometheus/prometheus.yml
+        src: prometheus/prometheus.yml
         dest: /srv/prometheus/prometheus.yml
       become: yes
 
