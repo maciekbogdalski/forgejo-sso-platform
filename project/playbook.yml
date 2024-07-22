@@ -291,15 +291,6 @@
       debug:
         var: remove_postgres_service_result
 
-- name: Deploy PostgreSQL service
-  hosts: control
-  tasks:
-    - name: Ensure PostgreSQL service is removed if it exists
-      command: docker service rm postgres
-      ignore_errors: yes
-      register: remove_postgres_service_result
-      failed_when: "remove_postgres_service_result.rc not in [0, 1]"
-
     - name: Create PostgreSQL service
       command: >
         docker service create
@@ -316,19 +307,22 @@
         --log-opt max-file=3
         postgres:16.3
       register: create_postgres_service
-      async: 60
-      poll: 15
+      become: yes
+
+    - name: Debug PostgreSQL service creation result
+      debug:
+        var: create_postgres_service
 
     - name: Check if PostgreSQL service is running
       command: docker service ps postgres
       register: postgres_service_status
       retries: 10
       delay: 15
-      until: postgres_service_status.stdout.find('Running') != -1
+      become: yes
 
     - name: Debug PostgreSQL service status
       debug:
-        var: postgres_service_status.stdout
+        var: postgres_service_status
 
 
 
