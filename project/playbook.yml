@@ -136,8 +136,8 @@
           services:
             web:
               image: nginx:latest
-              ports:
-                - "8080:80"
+              expose:
+                - "80"
               networks:
                 - webnet
           networks:
@@ -162,8 +162,6 @@
     - name: debug
       debug:
         var: docker_services_status.stdout
-
-
 
 - name: Configure Docker Registry with Authentication and HTTPS
   hosts: control
@@ -206,8 +204,8 @@
           services:
             registry:
               image: registry:2
-              ports:
-                - "5000:5000"
+              expose:
+                - "5000"
               environment:
                 REGISTRY_HTTP_TLS_CERTIFICATE: /certs/domain.crt
                 REGISTRY_HTTP_TLS_KEY: /certs/domain.key
@@ -255,7 +253,6 @@
     - name: Debug login result
       debug:
         var: login_result
-
 
 - name: Deploy PostgreSQL database for applications
   hosts: control
@@ -323,8 +320,6 @@
     - name: Debug PostgreSQL service status
       debug:
         var: postgres_service_status
-
-
 
 - name: Create OpenSSL configuration file for Traefik certificate
   hosts: control
@@ -473,7 +468,6 @@
         docker service create --name keycloak
         --replicas 1
         --network webnet
-        --publish published=8180,target=8180
         --env KEYCLOAK_USER=admin
         --env KEYCLOAK_PASSWORD=admin
         --env DB_VENDOR=postgres
@@ -485,6 +479,11 @@
         --env KEYCLOAK_IMPORT=/opt/keycloak/data/import/vcc-realm.json
         --constraint 'node.role==manager'
         --mount type=bind,source=/srv/keycloak/import,target=/opt/keycloak/data/import
+        --label traefik.enable=true
+        --label traefik.http.routers.keycloak.rule=Host(`auth.vcc.local`)
+        --label traefik.http.routers.keycloak.entrypoints=websecure
+        --label traefik.http.routers.keycloak.tls=true
+        --label traefik.http.services.keycloak.loadbalancer.server.port=8180
         quay.io/keycloak/keycloak:23.0.3 start-dev --http-port=8180 --hostname-url=http://auth.vcc.local
       register: keycloak_service_result
       ignore_errors: yes
@@ -505,7 +504,6 @@
     - name: Wait for Keycloak to start
       pause:
         seconds: 120
-
 
 - name: Deploy Customized Forgejo Service in Docker Swarm
   hosts: control
@@ -565,7 +563,6 @@
         docker service create --name forgejo
         --replicas 1
         --network webnet
-        --publish published=3000,target=3000
         --env FORGEJO_DB_TYPE=postgres
         --env FORGEJO_DB_HOST=postgres
         --env FORGEJO_DB_NAME=forgejo
@@ -580,6 +577,11 @@
         --mount type=bind,source=/srv/forgejo/forgejo.ini,target=/data/gitea/conf/app.ini
         --mount type=volume,source=forgejo_data,target=/data
         --mount type=bind,source=/certs,target=/certs
+        --label traefik.enable=true
+        --label traefik.http.routers.forgejo.rule=Host(`git.vcc.local`)
+        --label traefik.http.routers.forgejo.entrypoints=websecure
+        --label traefik.http.routers.forgejo.tls=true
+        --label traefik.http.services.forgejo.loadbalancer.server.port=3000
         localhost:5000/forgejo:custom-1.21
       register: forgejo_service_result
       ignore_errors: yes
@@ -600,8 +602,6 @@
     - name: Wait for Forgejo to start
       pause:
         seconds: 60
-
-
 
 - name: Deploy Grafana service in Docker Swarm
   hosts: control
@@ -654,7 +654,6 @@
         docker service create --name grafana
         --replicas 1
         --network webnet
-        --publish published=3001,target=3000
         --env GRAFANA_DB_HOST=postgres
         --env GRAFANA_DB_USER=admin
         --env GRAFANA_DB_PASSWORD=mysecretpassword
@@ -666,6 +665,11 @@
         --mount type=volume,source=grafana_data,target=/var/lib/grafana
         --mount type=bind,source=/certs,target=/certs
         --constraint 'node.role==manager'
+        --label traefik.enable=true
+        --label traefik.http.routers.grafana.rule=Host(`mon.vcc.local`)
+        --label traefik.http.routers.grafana.entrypoints=websecure
+        --label traefik.http.routers.grafana.tls=true
+        --label traefik.http.services.grafana.loadbalancer.server.port=3000
         localhost:5000/grafana:custom-10.2.2
       register: grafana_service_result
       ignore_errors: yes
@@ -686,8 +690,6 @@
     - name: Wait for Grafana to start
       pause:
         seconds: 60
-
-
 
 - name: Deploy Prometheus service in Docker Swarm
   hosts: control
@@ -721,10 +723,14 @@
         docker service create --name prometheus
         --replicas 1
         --network webnet
-        --publish published=9090,target=9090
         --mount type=bind,source=/srv/prometheus/prometheus.yml,target=/etc/prometheus/prometheus.yml
         --mount type=volume,source=prometheus_data,target=/prometheus
         --constraint 'node.role==manager'
+        --label traefik.enable=true
+        --label traefik.http.routers.prometheus.rule=Host(`prom.vcc.local`)
+        --label traefik.http.routers.prometheus.entrypoints=websecure
+        --label traefik.http.routers.prometheus.tls=true
+        --label traefik.http.services.prometheus.loadbalancer.server.port=9090
         quay.io/prometheus/prometheus:v2.48.1
         --config.file=/etc/prometheus/prometheus.yml
         --storage.tsdb.path=/prometheus
@@ -764,8 +770,6 @@
       pause:
         seconds: 60
 
-
-
 - name: Expose Prometheus via Traefik
   hosts: control
   tasks:
@@ -783,7 +787,6 @@
     - name: Debug Traefik configuration result
       debug:
         var: traefik_prometheus_result
-
 
 - name: Ensure Loki directory exists
   hosts: control
@@ -808,8 +811,6 @@
         dest: /srv/loki/docker-compose.yml
         mode: '0644'
       become: yes
-
-
 
 - name: Deploy Loki service in Docker Swarm
   hosts: control
@@ -985,7 +986,6 @@
       shell: docker service update --force prometheus
       become: yes
 
-
 - name: Ensure Grafana dashboards are provisioned
   hosts: control
   tasks:
@@ -1023,7 +1023,6 @@
       shell: docker service update --force grafana
       become: yes
 
-
 - name: Ensure Prometheus scrapes Loki and Promtail
   hosts: control
   tasks:
@@ -1036,8 +1035,6 @@
     - name: Restart Prometheus service
       shell: docker service update --force prometheus
       become: yes
-
-
 
 - name: Ensure metrics from nodes can be attributed to a specific node
   hosts: control
@@ -1129,8 +1126,6 @@
     - name: Debug Promtail service status
       debug:
         var: promtail_service_status.stdout
-
-
 
 - name: Using dockerswarm_sd_config nodes mode to make Prometheus scrape the endpoint
   hosts: control
