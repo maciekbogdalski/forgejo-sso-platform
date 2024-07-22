@@ -1,6 +1,7 @@
 [control]
-control ansible_host=192.168.231.10 nfs_server_ip=192.168.231.10
-
+control ansible_host=192.168.177.10 nfs_server_ip=192.168.177.10 ansible_user=vagrant ansible_private_key_file=/home/vagrant/.ssh/id_rsa_vcc
 [target]
-target1 ansible_host=192.168.231.11
-target2 ansible_host=192.168.231.12
+target1 ansible_host=192.168.177.11 ansible_user=vagrant ansible_private_key_file=/home/vagrant/.ssh/id_rsa_vcc
+target2 ansible_host=192.168.177.12 ansible_user=vagrant ansible_private_key_file=/home/vagrant/.ssh/id_rsa_vcc
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
