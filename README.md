@@ -1,26 +1,63 @@
-# VCC Project 2023-2024
+# Forgejo SSO Platform
 
-Hello and welcome to the VCC Project 2023-2024 repository.
+This repository contains a comprehensive project for automating the deployment of a scalable Forgejo instance with Single Sign-On (SSO) capabilities. The project was developed as part of the "Virtualization and Cloud Computing" course exam and replicates real-world DevOps practices using modern tools and technologies.
 
-Support [Giacomo](mailto:giacomo.longo@dibris.unige.it)
+## Project Overview
 
-Look for **TODO** tags in the repository to find out which tasks are to be performed
+The project involves the following key components:
 
-## Usage
+- **Automated Deployment**: The setup of the entire environment is automated using Ansible, ensuring that the deployment is reproducible, scalable, and requires no manual intervention.
+- **Docker Swarm**: A Docker Swarm cluster is configured to orchestrate the deployment of multiple services across nodes, including Forgejo, Keycloak (for SSO) and Prometheus (for metrics collection).
+- **Centralized Monitoring**: Integration of Prometheus to monitor system health and performance, with persistent storage to ensure data resilience.
+- **Secure and Scalable Configuration**: Secure communications are implemented using self-signed certificates, with Traefik handling reverse proxying and TLS termination.
 
-Use
+## Key Features
 
-- `vagrant up` to boot the vagrant VMs
-- `vagrant destroy -f` to stop them
-- `vagrant ssh VCC-control` to access the shell of the VCC control node
-  - You will find the playbook inside of the `/vagrant` directory
-- `vagrant ssh VCC-target1` to access the shell of the VCC first node
-- `vagrant ssh VCC-target2` to access the shell of the VCC second node
+- **Scalability**: The Docker Swarm setup is easily extendable, supporting the addition of multiple worker nodes and horizontal service scaling.
+- **Security**: Secure SSO implementation via Keycloak, with HTTPS encryption for all services.
+- **Persistence**: Data persistence is ensured across service restarts and node failures using NFS and Docker Swarm's built-in features.
+- **Monitoring and Metrics**: Full-stack monitoring is provided by Prometheus, offering detailed insights into the infrastructure.
 
-## DNS names
+## Technologies Used
 
-Within the scenario machines, `controlnode.vcc.local`, `target1.vcc.local`, and `target2.vcc.local` resolve to the machines IP addresses.
+- **Ansible**: For automating the setup and configuration of the entire environment.
+- **Docker Swarm**: For orchestrating containerized services across multiple nodes.
+- **Traefik**: As a reverse proxy and load balancer, managing incoming traffic with TLS encryption.
+- **Keycloak**: For Single Sign-On (SSO) and identity management.
+- **Prometheus**: For monitoring, metrics collection, and visualization.
 
-On `target1` and `target2`, `registry.vcc.local` resolves to `127.0.0.1` (the loopback address).
+## Setup Instructions
 
-**Remember that in order to access the project websites from your own browser you need to add host aliases pointed to one of the nodes ON YOUR HOST**
+To set up the project on your local machine:
+
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/your-username/forgejo-sso-platform.git
+   ```
+2. **Navigate to the Project Directory**:
+   ```bash
+   cd forgejo-sso-platform
+   ```
+3. **Run the Setup**:
+   ```bash
+   make setup-all
+   ```
+
+This will automatically deploy and configure all services on two Ubuntu 22.04 VMs.
+
+## Accessing the Services
+
+- **Forgejo**: `https://git.vcc.local`
+- **Keycloak**: `https://auth.vcc.local`
+- **Prometheus**: `https://prom.vcc.local`
+
+## Challenges and Solutions
+
+This project involved tackling several complex challenges, such as seamless service integration, automated certificate management, and maintaining persistent storage across distributed nodes. These were addressed through advanced Docker Swarm configurations, custom Ansible playbooks, and the integration of comprehensive monitoring tools to ensure system reliability and performance.
+
+## Repository Structure
+
+- **playbooks/**: Ansible playbooks for automating the setup.
+- **docker/**: Custom Dockerfiles and configurations for the deployed services.
+- **templates/**: Configuration templates for various services.
+- **docs/**: Documentation on the setup, configuration, and usage of the system.
