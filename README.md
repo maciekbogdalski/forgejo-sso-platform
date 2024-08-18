@@ -34,16 +34,19 @@ To set up the project on your local machine:
    ```bash
    git clone https://github.com/your-username/forgejo-sso-platform.git
    ```
+
 2. **Navigate to the Project Directory**:
    ```bash
    cd forgejo-sso-platform
    ```
-3. **Run the Setup**:
+
+3. **Start the Vagrant Environment**:
    ```bash
-   make setup-all
+   vagrant up
    ```
 
-This will automatically deploy and configure all services on two Ubuntu 22.04 VMs.
+This will automatically deploy and configure all services on virtual machines as defined in the Vagrantfile. The Vagrantfile handles the cloning of necessary repositories, VM provisioning, and service setup.
+
 
 ## Accessing the Services
 
